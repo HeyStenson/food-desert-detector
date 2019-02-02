@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset='utf-8' />
+  <title>Display a map</title>
+  <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+  <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v0.52.0/mapbox-gl.js'></script>
+  <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v0.52.0/mapbox-gl.css' rel='stylesheet' />
+  <script src='https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v3.1.0/mapbox-gl-geocoder.min.js'></script>
+  <link rel='stylesheet' href='https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v3.1.0/mapbox-gl-geocoder.css' type='text/css' />
+  <script src='https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js'></script>
+  <style>
+    body {
+      font: 500 20px/26px 'Helvetica Neue', Helvetica, Arial, Sans-serif;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .sidebar {
+      width: 33.3333%;
+    }
+
+    #map {
+      border-left: 1px solid #fff;
+      position: absolute;
+      left: 33.3333%;
+      width: 66.6666%;
+      top: 0;
+      bottom: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <div class='sidebar'>
+    <h1>Stores</h1>
+    <div class='listings' id='listings'></div>
+  </div>
+  <div id='map'></div>
+  <script>
+    mapboxgl.accessToken = '';
+    
+    var map = new mapboxgl.Map({
+      container: 'map', // container id
+      style: 'mapbox://styles/mapbox/streets-v11', // stylesheet location
+      center: [-105.0178157, 39.737925], // starting position [lng, lat]
+      zoom: 11 // starting zoom
+    });
+
+    var geocoder = new MapboxGeocoder({
+      accessToken: mapboxgl.accessToken,
+      zoom: 14,
+      placeholder: "Enter a location",
+      bbox: [-105.11674059239868, 39.67916756656487, -104.89819924177453, 39.83724367189825]
+    });
+
+    map.addControl(geocoder, 'top-left');
+    
+    var getCoords = function() {
+      geocoder.on("result", function(data) {
+        var lon = data.result.center[0];
+        var lat = data.result.center[1];
+        var query = 'https://api.mapbox.com/v4/heystenson.6bwo47f6/tilequery/' + lon + ',' + lat + '.json?radius=1609&limit=25&access_token=' + mapboxgl.accessToken;
+
+        $.ajax({
+          method: 'GET',
+          url: query,
+        }).done(function(data) {
+          console.log(data)
+          for (i = 0; i < data.features.length; i++) {
+            var currentStore = data.features[i];
+            var prop = currentStore.properties;
+            var listings = document.getElementById('listings');
+            var listing = listings.appendChild(document.createElement('div'));
+            listing.className = 'item';
+            listing.id = 'listing-' + i;
+            
+            var storeName = listing.appendChild(document.createElement('a'));
+            storeName.className = 'title';
+            storeName.dataPosition = i;
+            storeName.innerHTML = prop.STORE_NAME;
+            
+            var details = listing.appendChild(document.createElement('div'));
+            details.innerHTML = prop.ADDRESS_LINE1 + prop.STORE_TYPE;
+          }
+        })
+      })
+    };
+    
+    getCoords();
+    
+    // place pin on search result
+    // place different pins at store locations
+    // store location pins should be green if "supermarket", red if not
+
+  </script>
+
+</body>
+
+</html>
