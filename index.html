@@ -40,8 +40,8 @@
   </div>
   <div id='map'></div>
   <script>
-    mapboxgl.accessToken = '';
-    
+    mapboxgl.accessToken = 'pk.eyJ1IjoiaGV5c3RlbnNvbiIsImEiOiJjamNncWcwbHIzOGJuMzNvNWlzNXd3NWJsIn0.L29cYSXDHgUP1hn5_NdKMw';
+
     var map = new mapboxgl.Map({
       container: 'map', // container id
       style: 'mapbox://styles/mapbox/streets-v11', // stylesheet location
@@ -49,52 +49,75 @@
       zoom: 11 // starting zoom
     });
 
-    var geocoder = new MapboxGeocoder({
-      accessToken: mapboxgl.accessToken,
-      zoom: 14,
-      placeholder: "Enter a location",
-      bbox: [-105.11674059239868, 39.67916756656487, -104.89819924177453, 39.83724367189825]
+    // After the map style has loaded on the page,
+    // add a source layer and default styling for a single point
+    map.on('load', function() {
+
+      var geocoder = new MapboxGeocoder({
+        accessToken: mapboxgl.accessToken,
+        zoom: 12,
+        placeholder: "Enter a location",
+        bbox: [-105.11674059239868, 39.67916756656487, -104.89819924177453, 39.83724367189825]
+      });
+
+      map.addControl(geocoder, 'top-left');
+
+      map.addSource('single-point', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: []
+        }
+      });
+
+      map.addLayer({
+        id: 'point',
+        source: 'single-point',
+        type: 'circle',
+        paint: {
+          'circle-radius': 10,
+          'circle-color': '#448ee4'
+        }
+      });
+
+      var getCoords = function() {
+        geocoder.on("result", function(data) {
+          map.getSource('single-point').setData(data.result.geometry);
+
+          var lon = data.result.center[0];
+          var lat = data.result.center[1];
+          var query = 'https://api.mapbox.com/v4/heystenson.6bwo47f6/tilequery/' + lon + ',' + lat + '.json?radius=1609&limit=25&access_token=' + mapboxgl.accessToken;
+          
+          $.ajax({
+            method: 'GET',
+            url: query,
+          }).done(function(data) {
+            console.log(data)
+            for (i = 0; i < data.features.length; i++) {
+              var currentStore = data.features[i];
+              var prop = currentStore.properties;
+              var listings = document.getElementById('listings');
+              var listing = listings.appendChild(document.createElement('div'));
+              listing.className = 'item';
+              listing.id = 'listing-' + i;
+
+              var storeName = listing.appendChild(document.createElement('a'));
+              storeName.className = 'title';
+              storeName.dataPosition = i;
+              storeName.innerHTML = prop.STORE_NAME;
+
+              var details = listing.appendChild(document.createElement('div'));
+              details.innerHTML = prop.ADDRESS_LINE1 + prop.STORE_TYPE;
+              
+            }
+          })
+        })
+      };
+      getCoords();
     });
 
-    map.addControl(geocoder, 'top-left');
-    
-    var getCoords = function() {
-      geocoder.on("result", function(data) {
-        var lon = data.result.center[0];
-        var lat = data.result.center[1];
-        var query = 'https://api.mapbox.com/v4/heystenson.6bwo47f6/tilequery/' + lon + ',' + lat + '.json?radius=1609&limit=25&access_token=' + mapboxgl.accessToken;
-
-        $.ajax({
-          method: 'GET',
-          url: query,
-        }).done(function(data) {
-          console.log(data)
-          for (i = 0; i < data.features.length; i++) {
-            var currentStore = data.features[i];
-            var prop = currentStore.properties;
-            var listings = document.getElementById('listings');
-            var listing = listings.appendChild(document.createElement('div'));
-            listing.className = 'item';
-            listing.id = 'listing-' + i;
-            
-            var storeName = listing.appendChild(document.createElement('a'));
-            storeName.className = 'title';
-            storeName.dataPosition = i;
-            storeName.innerHTML = prop.STORE_NAME;
-            
-            var details = listing.appendChild(document.createElement('div'));
-            details.innerHTML = prop.ADDRESS_LINE1 + prop.STORE_TYPE;
-          }
-        })
-      })
-    };
-    
-    getCoords();
-    
-    // place pin on search result
     // place different pins at store locations
     // store location pins should be green if "supermarket", red if not
-
   </script>
 
 </body>
