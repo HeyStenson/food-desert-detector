@@ -3,121 +3,161 @@
 
 <head>
   <meta charset='utf-8' />
-  <title>Display a map</title>
+  <title>Food desert detector</title>
   <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
   <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v0.52.0/mapbox-gl.js'></script>
   <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v0.52.0/mapbox-gl.css' rel='stylesheet' />
   <script src='https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v3.1.0/mapbox-gl-geocoder.min.js'></script>
   <link rel='stylesheet' href='https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v3.1.0/mapbox-gl-geocoder.css' type='text/css' />
-  <script src='https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js'></script>
   <style>
     body {
-      font: 500 20px/26px 'Helvetica Neue', Helvetica, Arial, Sans-serif;
       margin: 0;
       padding: 0;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .sidebar {
-      width: 33.3333%;
     }
 
     #map {
-      border-left: 1px solid #fff;
       position: absolute;
-      left: 33.3333%;
-      width: 66.6666%;
       top: 0;
       bottom: 0;
+      width: 100%;
+    }
+
+    .mapbox-gl-inspect_popup {
+      max-height: 300px !important;
     }
   </style>
 </head>
 
 <body>
-  <div class='sidebar'>
-    <h1>Stores</h1>
-    <div class='listings' id='listings'></div>
-  </div>
+
   <div id='map'></div>
   <script>
-    mapboxgl.accessToken = 'pk.eyJ1IjoiaGV5c3RlbnNvbiIsImEiOiJjamNncWcwbHIzOGJuMzNvNWlzNXd3NWJsIn0.L29cYSXDHgUP1hn5_NdKMw';
-
+    mapboxgl.accessToken = '';
     var map = new mapboxgl.Map({
-      container: 'map', // container id
-      style: 'mapbox://styles/mapbox/streets-v11', // stylesheet location
-      center: [-105.0178157, 39.737925], // starting position [lng, lat]
-      zoom: 11 // starting zoom
+      container: 'map',
+      style: 'mapbox://styles/mapbox/light-v10',
+      center: [-105.0178157, 39.737925],
+      zoom: 12
     });
 
-    // After the map style has loaded on the page,
-    // add a source layer and default styling for a single point
-    map.on('load', function() {
-
+    map.on('style.load', function() {
       var geocoder = new MapboxGeocoder({
         accessToken: mapboxgl.accessToken,
-        zoom: 12,
+        zoom: 13,
         placeholder: "Enter a location",
-        bbox: [-105.11674059239868, 39.67916756656487, -104.89819924177453, 39.83724367189825]
+        bbox: [-105.116, 39.679, -104.898, 39.837]
       });
 
       map.addControl(geocoder, 'top-left');
 
-      map.addSource('single-point', {
-        type: 'geojson',
+      geocoder.on('result', function(data) {
+
+        var marker = new mapboxgl.Marker()
+          .setLngLat(data.result.center)
+          .addTo(map);
+
+        get(makeTilequeryURL(TILESET, data.result.center, RADIUS)).then(function(resp) {
+          map.getSource('tilequery').setData(JSON.parse(resp));
+        })
+      });
+
+      var TILESET = 'heystenson.6bwo47f6';
+      var RADIUS = 1609;
+
+      function get(url) {
+        return new Promise(function(resolve, reject) {
+          var req = new XMLHttpRequest();
+          req.open('GET', url);
+
+          req.onload = function() {
+            if (req.status == 200) {
+              resolve(req.response);
+            } else {
+              reject(Error(req.statusText));
+            }
+          };
+
+          req.onerror = function() {
+            reject(Error('Network error'));
+          };
+          req.send();
+        });
+      }
+
+      function makeTilequeryURL(tileset, point, radius) {
+        var url = 'https://api.mapbox.com/v4/' + tileset + '/tilequery/' + point[0] + ',' + point[1] + '.json?radius=' + radius +
+          '&limit=50&access_token=' + mapboxgl.accessToken
+        return url
+      }
+
+      map.addSource('tilequery', {
+        type: "geojson",
         data: {
-          type: 'FeatureCollection',
-          features: []
+          "type": "FeatureCollection",
+          "features": []
         }
       });
 
       map.addLayer({
-        id: 'point',
-        source: 'single-point',
-        type: 'circle',
+        id: "tilequery-points",
+        type: "circle",
+        source: "tilequery",
         paint: {
-          'circle-radius': 10,
-          'circle-color': '#448ee4'
+          "circle-stroke-color": "white",
+          "circle-stroke-width": {
+            stops: [
+              [0, 0.1],
+              [18, 3]
+            ],
+            base: 5
+          },
+          "circle-radius": {
+            stops: [
+              [12, 5],
+              [22, 180]
+            ],
+            base: 5
+          },
+          "circle-color": [
+            'match',
+            ['get', 'STORE_TYPE'],
+            'Convenience Store', '#FF8C00',
+            'Convenience Store With Gas', '#FF8C00',
+            'Pharmacy', '#FF8C00',
+            'Small Grocery Store', '#008000',
+            'Specialty Food Store', '#9ACD32',
+            'Supercenter', '#008000',
+            'Superette', '#008000',
+            'Supermarket', '#008000',
+            'Warehouse Club Store', '#008000',
+            '#FF0000'
+          ]
         }
       });
 
-      var getCoords = function() {
-        geocoder.on("result", function(data) {
-          map.getSource('single-point').setData(data.result.geometry);
+      var popup = new mapboxgl.Popup({
+        closeButton: false,
+        closeOnClick: false
+      });
 
-          var lon = data.result.center[0];
-          var lat = data.result.center[1];
-          var query = 'https://api.mapbox.com/v4/heystenson.6bwo47f6/tilequery/' + lon + ',' + lat + '.json?radius=1609&limit=25&access_token=' + mapboxgl.accessToken;
-          
-          $.ajax({
-            method: 'GET',
-            url: query,
-          }).done(function(data) {
-            console.log(data)
-            for (i = 0; i < data.features.length; i++) {
-              var currentStore = data.features[i];
-              var prop = currentStore.properties;
-              var listings = document.getElementById('listings');
-              var listing = listings.appendChild(document.createElement('div'));
-              listing.className = 'item';
-              listing.id = 'listing-' + i;
+      map.on('mouseenter', 'tilequery-points', function(e) {
+        map.getCanvas().style.cursor = 'pointer';
+        
+        var title = '<h3>' + e.features[0].properties.STORE_NAME + '</h3>';
+        
+        var storeType = '<h4>' + e.features[0].properties.STORE_TYPE + '</h4>';
+        
+        var lon = e.features[0].properties.longitude;
+        var lat = e.features[0].properties.latitude;
+        var coordinates = new mapboxgl.LngLat(lon, lat);
+        var content = title + storeType;
+        
+        popup.setLngLat(coordinates)
+          .setHTML(content)
+          .addTo(map);
+      })
 
-              var storeName = listing.appendChild(document.createElement('a'));
-              storeName.className = 'title';
-              storeName.dataPosition = i;
-              storeName.innerHTML = prop.STORE_NAME;
-
-              var details = listing.appendChild(document.createElement('div'));
-              details.innerHTML = prop.ADDRESS_LINE1 + prop.STORE_TYPE;
-              
-            }
-          })
-        })
-      };
-      getCoords();
-    });
-
-    // place different pins at store locations
-    // store location pins should be green if "supermarket", red if not
+    })
   </script>
 
 </body>
