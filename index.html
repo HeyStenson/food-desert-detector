@@ -44,7 +44,7 @@
       var geocoder = new MapboxGeocoder({
         accessToken: mapboxgl.accessToken,
         zoom: 13,
-        placeholder: "Enter a location",
+        placeholder: "Enter an address or place name",
         bbox: [-105.116, 39.679, -104.898, 39.837]
       });
 
@@ -52,17 +52,19 @@
 
       geocoder.on('result', function(data) {
 
-        var marker = new mapboxgl.Marker()
-          .setLngLat(data.result.center)
+        var TILESET = 'heystenson.6bwo47f6';
+        var POINT = data.result.center;
+        var RADIUS = 1609;
+
+        var marker = new mapboxgl.Marker({'color': '#008000'})
+          .setLngLat(POINT)
           .addTo(map);
 
-        get(makeTilequeryURL(TILESET, data.result.center, RADIUS)).then(function(resp) {
+        get(makeTilequeryURL(TILESET, POINT, RADIUS)).then(function(resp) {
           map.getSource('tilequery').setData(JSON.parse(resp));
         })
       });
 
-      var TILESET = 'heystenson.6bwo47f6';
-      var RADIUS = 1609;
 
       function get(url) {
         return new Promise(function(resolve, reject) {
@@ -124,38 +126,41 @@
             'Convenience Store', '#FF8C00',
             'Convenience Store With Gas', '#FF8C00',
             'Pharmacy', '#FF8C00',
-            'Small Grocery Store', '#008000',
             'Specialty Food Store', '#9ACD32',
+            'Small Grocery Store', '#008000',
             'Supercenter', '#008000',
             'Superette', '#008000',
             'Supermarket', '#008000',
             'Warehouse Club Store', '#008000',
-            '#FF0000'
+            '#FF0000' // any other store type
           ]
         }
       });
 
-      var popup = new mapboxgl.Popup({
-        closeButton: false,
-        closeOnClick: false
-      });
+      var popup = new mapboxgl.Popup;
 
       map.on('mouseenter', 'tilequery-points', function(e) {
         map.getCanvas().style.cursor = 'pointer';
-        
+
         var title = '<h3>' + e.features[0].properties.STORE_NAME + '</h3>';
-        
         var storeType = '<h4>' + e.features[0].properties.STORE_TYPE + '</h4>';
-        
+        var storeAddress = '<p>' + e.features[0].properties.ADDRESS_LINE1 + '</p>';
+        var obj = JSON.parse(e.features[0].properties.tilequery);
+        var distance = '<p>' + (obj.distance / 1609.344).toFixed(2) + ' mi. from location' + '</p>';
+
         var lon = e.features[0].properties.longitude;
         var lat = e.features[0].properties.latitude;
         var coordinates = new mapboxgl.LngLat(lon, lat);
-        var content = title + storeType;
-        
+        var content = title + storeType + storeAddress + distance;
+
         popup.setLngLat(coordinates)
           .setHTML(content)
           .addTo(map);
       })
+
+      map.on('mouseleave', 'tilequery-points', function() {
+        map.getCanvas().style.cursor = '';
+      });
 
     })
   </script>
